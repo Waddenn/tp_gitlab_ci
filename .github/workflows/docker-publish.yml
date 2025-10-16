@@ -1,0 +1,111 @@
+name: Build & Push Docker image
+
+on:
+  push:
+    branches: [ "main" ]
+    tags: [ "v*", "release-*" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write   # nécessaire pour pousser sur GHCR
+
+env:
+  # --- CIBLE PAR DÉFAUT : GHCR ---
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }} # ex: Waddenn/TP_Gitlab_Ci
+
+  # Option Docker Hub (décommente ci-dessous et commente REGISTRY/IMAGE_NAME ci-dessus)
+  # REGISTRY: docker.io
+  # IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/tp_gitlab_ci
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU (multi-arch)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Connexion au registry
+      # GHCR : GITHUB_TOKEN suffit pour pusher dans le namespace du repo
+      - name: Login to Registry
+        if: env.REGISTRY == 'ghcr.io'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Docker Hub (optionnel) : nécessite secrets DOCKERHUB_USERNAME/DOCKERHUB_TOKEN
+      - name: Login to Docker Hub
+        if: env.REGISTRY == 'docker.io'
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            # tags “propres” sur main
+            type=raw,value=latest,enable={{is_default_branch}}
+            # tag par SHA pour traçabilité
+            type=sha,format=short
+            # tags de release (v1.2.3, release-2025.10, etc.)
+            type=ref,event=tag
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.title=TP_Gitlab_Ci
+
+      - name: Build & Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          # Si ton Dockerfile n'est pas à la racine :
+          # file: ./path/to/Dockerfile
+name: Build & Push Docker image
+
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ github.repository }}:latest
