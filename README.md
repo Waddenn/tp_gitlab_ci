@@ -16,3 +16,6 @@ docker run -d \
   --name tp_gitlab_ci \
   -p 5000:5000 \
   ghcr.io/waddenn/tp_gitlab_ci:latest
+```
+<img width="332" height="87" alt="screenshot-2025-10-16_15-33-12" src="https://github.com/user-attachments/assets/ca158390-6766-431b-a1e2-e9a2a359fb02" />
+
